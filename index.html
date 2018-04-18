@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>5v5 Telemetry</title>
+
+  <style>
+    #map {
+      width: 1258px;
+      height: 807px;
+      border: 2px solid blue;
+      background-size: 100%;
+      margin: 5% auto;
+      position: relative;
+      background-image: url("./5v5_telemetry_map.png");
+    }
+
+    .point {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      position: absolute;
+    }
+
+    .heroes {
+      width: 10px;
+      height: 10px;
+      background: orange;
+    }
+    .objectives {
+      width: 15px;
+      height: 15px;
+      background: purple;
+    }
+
+    .minions {
+      width: 5px;
+      height: 5px;
+      background: white;
+    }
+
+    .Left {
+      border: 1px solid blue;
+    }
+
+    .Right {
+      border: 1px solid red;
+    }
+
+    .slider {
+      -webkit-appearance: none;
+      display: block;
+      margin: 0 auto;
+      width: 1258px;
+      height: 25px;
+      background: #d3d3d3;
+      outline: none;
+      opacity: 0.7;
+      -webkit-transition: .2s;
+      transition: opacity .2s;
+    }
+
+    .slider:hover {
+      opacity: 1;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 25px;
+      height: 25px;
+      background: #4CAF50;
+      cursor: pointer;
+    }
+
+    .slider::-moz-range-thumb {
+      width: 25px;
+      height: 25px;
+      background: #4CAF50;
+      cursor: pointer;
+    }
+
+    /* Tooltip text */
+    .tooltiptext {
+      visibility: hidden;
+      width: auto;
+      background-color: black;
+      color: #fff;
+      text-align: center;
+      padding: 5px 10px;
+      border-radius: 6px;
+
+      position: absolute;
+      z-index: 2;
+    }
+
+    .point:hover .tooltiptext {
+      visibility: visible;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map">
+  </div>
+  <input id="slider" class="slider" type="range" min="0" max="100" value="100">
+  
+</body>
+<script type='text/javascript' src='./data.js'></script>
+
+<script type='text/javascript'>
+
+  let width = 1258;
+  let height = 807;
+
+  const scaleX = 246;
+  const scaleY = 160;
+
+  let transformX = (x) => {
+    return ((x + (scaleX / 2)) / scaleX) * width;
+  }
+
+  let transformY = (y) => {
+    return ((y + (scaleY / 2)) / scaleY) * height;
+  }
+
+  const map = document.getElementById("map");
+
+  let points = [];
+
+  let start = new Date(data[0].time);
+  let end = new Date(data[data.length - 1].time);
+  let totalSeconds = (end.getTime() - start.getTime()) / 1000;
+
+  let percentageIn = (time) => {
+    let secondsIn = (new Date(time).getTime() - start.getTime()) / 1000;
+    return (secondsIn / totalSeconds) * 100;
+  }
+
+  let createPoint = (type, telemetry) => ({
+    type: type,
+    team: telemetry.payload.Team,
+    coordinates: telemetry.payload.Position,
+    text: `${telemetry.payload.Actor} Killed ${telemetry.payload.Killed}`,
+    percentage: percentageIn(telemetry.time)
+  });
+
+  data.forEach((telemetry) => {
+    if (telemetry.type === "KillActor" && telemetry.payload.TargetIsHero) {
+      points.push(createPoint("heroes", telemetry));
+    };
+
+    if (telemetry.type === "KillActor" && 
+       (telemetry.payload.Killed === "*5v5_Ghostwing*"
+    || telemetry.payload.Killed === "*5v5_Blackclaw_Uncaptured*")
+     ) {
+      points.push(createPoint("objectives", telemetry));
+      // Returning here so Ghostwing and Blackclaw doesn't count towards Minions
+      return;
+    }
+
+    if (telemetry.type === "KillActor" && !telemetry.payload.TargetIsHero) {
+      points.push(createPoint("minions", telemetry));
+    }
+  });
+
+  let sliderRange = document.getElementById("slider");
+
+  const render = () => {
+    // Clear the map first
+    let fc = map.firstChild;
+    while(fc) {
+        map.removeChild(fc);
+        fc = map.firstChild;
+    };
+    
+    // then lay out the points
+    points.forEach((point) => {
+      if (Number(sliderRange.value) < point.percentage) return;
+      let element = document.createElement("div");
+      element.classList.add("point", point.type, point.team);
+      element.style.top = `${transformY(point.coordinates[2])}px`;
+      element.style.left = `${transformX(point.coordinates[0])}px`;
+      
+      let tooltip = document.createElement("span");
+      tooltip.classList.add("tooltiptext");
+      tooltip.innerHTML = point.text;
+      element.appendChild(tooltip);
+
+      map.appendChild(element);
+    })
+  }
+
+  render();
+
+
+  sliderRange.addEventListener("input", render);
+</script>
+</html>
